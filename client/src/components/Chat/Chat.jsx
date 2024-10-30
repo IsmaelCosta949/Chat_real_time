@@ -9,32 +9,35 @@ export default function Chat({ socket }) {
   const [messageList, setMessageList] = useState([]);
   const [isTyping, setIsTyping] = useState(false);
   const [userTyping, setUserTyping] = useState(null);
+  const [activeUsers, setActiveUsers] = useState([]);
 
   useEffect(() => {
-    // Receber histórico de mensagens quando o componente é montado
     socket.on("message_history", (history) => {
       setMessageList(history);
     });
 
-    // Receber novas mensagens em tempo real
     socket.on("receive_message", (data) => {
       setMessageList((current) => [...current, data]);
     });
 
-    // Receber notificação de digitação
-    socket.on("user_typing", ({ username, isTyping }) => {
-      if (isTyping) {
-        setUserTyping(username);
-      } else {
-        setUserTyping(null);
-      }
+    socket.on("user_typing", ({ username }) => {
+      setUserTyping(username);
     });
 
-    // Limpar listeners quando o componente é desmontado
+    socket.on("user_stopped_typing", () => {
+      setUserTyping(null);
+    });
+
+    socket.on("update_user_list", (users) => {
+      setActiveUsers(users);
+    });
+
     return () => {
       socket.off("message_history");
       socket.off("receive_message");
       socket.off("user_typing");
+      socket.off("user_stopped_typing");
+      socket.off("update_user_list");
     };
   }, [socket]);
 
@@ -45,14 +48,8 @@ export default function Chat({ socket }) {
   const handleInputChange = () => {
     if (!isTyping) {
       setIsTyping(true);
-      socket.emit("typing", true);
+      socket.emit("typing");
     }
-
-    // Parar de notificar digitação após um pequeno atraso de inatividade
-    setTimeout(() => {
-      setIsTyping(false);
-      socket.emit("typing", false);
-    }, 2000);
   };
 
   const handleSubmit = () => {
@@ -62,7 +59,8 @@ export default function Chat({ socket }) {
     socket.emit("message", message);
     clearInput();
     focusInput();
-    socket.emit("typing", false); // Parar notificação de digitação ao enviar
+    setIsTyping(false);
+    socket.emit("stop_typing");
   };
 
   const clearInput = () => {
@@ -82,15 +80,25 @@ export default function Chat({ socket }) {
   };
 
   return (
-    <div>
+    <div className={style["tela-cheia"]}>
+      <div className={style["box-lateral"]}>
+        <h3>Usuários ativos</h3>
+        <ul>
+          {activeUsers.map((user, index) => (
+            <li key={index}>{user}</li>
+          ))}
+        </ul>
+      </div>
       <div className={style["chat-container"]}>
         <div className={style["chat-body"]}>
           {messageList.map((message, index) => (
             <div
+              key={index}
               className={`${style["message-container"]} ${
                 message.authorId === socket.id && style["message-mine"]
+              } ${
+                message.type === "system_message" && style["system-message"]
               }`}
-              key={index}
             >
               <div className="message-author">
                 <strong>{message.author}</strong>

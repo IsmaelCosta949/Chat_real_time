@@ -1,20 +1,20 @@
-.chat-container{
-  height: 600px;
-  width: 400px;
+.chat-container {
+  height: 100vh;
+  width: 90%;
   background-color: #fff;
   -webkit-box-shadow: 5px 5px 15px 5px rgba(0, 0, 0, 0.3);
-	box-shadow: 5px 5px 15px 5px rgba(0, 0, 0, 0.3);
+  box-shadow: 5px 5px 15px 5px rgba(0, 0, 0, 0.3);
 }
-.chat-body{
+.chat-body {
   padding: 0 10px;
-  height: 550px;
+  height: calc(100% - 70px);
   overflow-y: scroll;
   color: #000;
   display: flex;
   flex-direction: column;
 }
 
-.message-container{
+.message-container {
   max-width: 250px;
   width: fit-content;
   background-color: lightgrey;
@@ -24,17 +24,37 @@
   align-self: start;
 }
 
-.message-mine{
+.message-mine {
   align-self: end;
   background-color: skyblue;
 }
 
-.chat-footer{
+.chat-footer {
   width: 100%;
   padding: 0 10px;
   box-sizing: border-box;
-  display:flex;
-  align-items: center;
+  display: flex;
+  align-items: end;
   bottom: 0;
   height: 50px;
+}
+
+.tela-cheia {
+  width: 100vw;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.box-lateral {
+  width: 20%;
+  height: 100vh;
+  background-color: red;
+}
+
+.typing-notification {
+  color: #000;
+  font-size: 16px;
+  margin-left: 10px;
 }

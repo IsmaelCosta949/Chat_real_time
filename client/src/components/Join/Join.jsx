@@ -34,24 +34,33 @@ export default function Join({ setChatVisibility, setSocket }) {
   }, [input]);
 
   return (
-    <div className={style["join-container"]}>
-      <h2>Chat em tempo real</h2>
-      <Input
-        inputRef={usernameRef}
-        placeholder="Nome de usuário"
-        value={input}
-        fullWidth
-        onChange={(e) => setInput(e.target.value)}
-      />
-      {error && <p className={style["error-message"]}>{error}</p>}
-      <Button
-        fullWidth
-        sx={{ mt: 2 }}
-        onClick={() => handleSubmit()}
-        variant="contained"
-      >
-        Entrar
-      </Button>
+    <div className={style["tela-cheia"]}>
+      <div className={style["join-container"]}>
+        <h2>Chat em tempo real</h2>
+        <Input
+          inputRef={usernameRef}
+          placeholder="Nome de usuário"
+          value={input}
+          fullWidth
+          onChange={(e) => setInput(e.target.value)}
+        />
+        {error && <p className={style["error-message"]}>{error}</p>}
+        <Button
+          fullWidth
+          sx={{ mt: 2 }}
+          onClick={() => handleSubmit()}
+          variant="contained"
+        >
+          Entrar
+        </Button>
+      </div>
+      {/* <div className={style["logo"]}>
+        <img
+          src="https://wallpapers.com/images/hd/discord-pictures-jk6hbod6g5686ag3.jpg"
+          alt=""
+          className={style["logo-img"]}
+        />
+      </div> */}
     </div>
   );
 }
