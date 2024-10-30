@@ -1,32 +1,18 @@
-const express = require("express");
-const http = require("http");
-const { Server } = require("socket.io");
-const redis = require("redis");
-
-const app = express();
-const server = http.createServer(app);
-const io = new Server(server, {
+const app = require("express")();
+const server = require("http").createServer(app);
+const io = require("socket.io")(server, {
   cors: { origin: "http://localhost:5173" },
 });
 
 const PORT = 3001;
-const activeUsers = new Set();
-const redisClient = redis.createClient(); // Criar cliente Redis
+const activeUsers = new Set(); // Usar um Set para manter nomes de usuários únicos
+const messageHistory = []; // Array para armazenar o histórico de mensagens
 
-// Conectar ao Redis
-redisClient.connect().catch(console.error);
-
-io.on("connection", async (socket) => {
+io.on("connection", (socket) => {
   console.log("Usuário conectado!", socket.id);
 
-  // Carregar histórico de mensagens do Redis quando o usuário se conecta
-  try {
-    const messageHistory = await redisClient.get("messageHistory");
-    const parsedHistory = messageHistory ? JSON.parse(messageHistory) : [];
-    socket.emit("message_history", parsedHistory);
-  } catch (err) {
-    console.error("Erro ao carregar o histórico de mensagens:", err);
-  }
+  // Enviar histórico de mensagens mas nao funciona
+  socket.emit("message_history", messageHistory);
 
   // Quando um usuário define seu nome de usuário
   socket.on("set_username", (username) => {
@@ -40,12 +26,22 @@ io.on("connection", async (socket) => {
       socket.emit("username_set", {
         message: "Nome de usuário configurado com sucesso",
       });
+
+      // Mensagem de entrada no chat
+      const joinMessage = {
+        text: `${username} entrou no chat.`,
+        author: "Sistema",
+        type: "system_message",
+        timestamp: new Date().toISOString(),
+      };
+      messageHistory.push(joinMessage);
+      io.emit("receive_message", joinMessage);
       io.emit("update_user_list", Array.from(activeUsers));
     }
   });
 
   // Quando um usuário envia uma mensagem
-  socket.on("message", async (text) => {
+  socket.on("message", (text) => {
     if (!socket.data.username) {
       socket.emit("error", {
         message: "Você precisa definir um nome de usuário primeiro",
@@ -59,16 +55,25 @@ io.on("connection", async (socket) => {
       author: socket.data.username,
       timestamp: new Date().toISOString(),
     };
+    messageHistory.push(message); // Salvar a mensagem mas nao funciona
+    io.emit("receive_message", message);
+  });
 
-    // Armazena a mensagem no Redis
-    try {
-      const messageHistory = await redisClient.get("messageHistory");
-      const parsedHistory = messageHistory ? JSON.parse(messageHistory) : [];
-      parsedHistory.push(message);
-      await redisClient.set("messageHistory", JSON.stringify(parsedHistory));
-      io.emit("receive_message", message);
-    } catch (err) {
-      console.error("Erro ao salvar a mensagem no Redis:", err);
+  // Quando um usuário está digitando
+  socket.on("typing", () => {
+    if (socket.data.username) {
+      socket.broadcast.emit("user_typing", {
+        username: socket.data.username,
+      });
+    }
+  });
+
+  // Quando um usuário para de digitar
+  socket.on("stop_typing", () => {
+    if (socket.data.username) {
+      socket.broadcast.emit("user_stopped_typing", {
+        username: socket.data.username,
+      });
     }
   });
 
@@ -77,6 +82,16 @@ io.on("connection", async (socket) => {
     console.log("Usuário desconectado!", socket.id);
     if (socket.data.username) {
       activeUsers.delete(socket.data.username);
+
+      const leaveMessage = {
+        text: `${socket.data.username} saiu do chat.`,
+        author: "Sistema",
+        type: "system_message",
+        timestamp: new Date().toISOString(),
+      };
+      messageHistory.push(leaveMessage);
+      io.emit("receive_message", leaveMessage);
+
       io.emit("update_user_list", Array.from(activeUsers));
     }
   });
