@@ -1,23 +1,18 @@
 import { Button, Input } from "@mui/material";
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useState } from "react";
 import io from "socket.io-client";
 import style from "./Join.module.css";
 
 export default function Join({ setChatVisibility, setSocket }) {
-  const usernameRef = useRef();
-  const [error, setError] = useState(null);
   const [input, setInput] = useState("");
+  const [error, setError] = useState(null);
+  const [socketInstance, setSocketInstance] = useState(null);
 
-  const handleSubmit = async () => {
-    const username = usernameRef.current.value;
-    if (!username.trim()) return;
-    const socket = await io.connect("http://localhost:3001");
+  useEffect(() => {
+    const socket = io("http://localhost:3001");
 
-    socket.emit("set_username", username);
-
-    socket.on("username_taken", () => {
-      setError("Nome de usuário já está em uso");
-      socket.disconnect();
+    socket.on("username_taken", ({ message }) => {
+      setError(message);
     });
 
     socket.on("username_set", () => {
@@ -25,6 +20,28 @@ export default function Join({ setChatVisibility, setSocket }) {
       setSocket(socket);
       setChatVisibility(true);
     });
+
+    socket.on("error", ({ message }) => {
+      setError(message);
+    });
+
+    setSocketInstance(socket);
+
+    return () => {
+      socket.off("username_taken");
+      socket.off("username_set");
+      socket.off("error");
+    };
+  }, [setSocket, setChatVisibility]);
+
+  const handleSubmit = () => {
+    const username = input.trim();
+    if (!username) {
+      setError("Por favor, insira um nome de usuário");
+      return;
+    }
+
+    socketInstance.emit("set_username", username);
   };
 
   useEffect(() => {
@@ -38,7 +55,6 @@ export default function Join({ setChatVisibility, setSocket }) {
       <div className={style["join-container"]}>
         <h2>Chat em tempo real</h2>
         <Input
-          inputRef={usernameRef}
           placeholder="Nome de usuário"
           value={input}
           fullWidth
@@ -48,19 +64,12 @@ export default function Join({ setChatVisibility, setSocket }) {
         <Button
           fullWidth
           sx={{ mt: 2 }}
-          onClick={() => handleSubmit()}
+          onClick={handleSubmit}
           variant="contained"
         >
           Entrar
         </Button>
       </div>
-      {/* <div className={style["logo"]}>
-        <img
-          src="https://wallpapers.com/images/hd/discord-pictures-jk6hbod6g5686ag3.jpg"
-          alt=""
-          className={style["logo-img"]}
-        />
-      </div> */}
     </div>
   );
 }

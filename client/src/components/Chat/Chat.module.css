@@ -5,6 +5,7 @@
   -webkit-box-shadow: 5px 5px 15px 5px rgba(0, 0, 0, 0.3);
   box-shadow: 5px 5px 15px 5px rgba(0, 0, 0, 0.3);
 }
+
 .chat-body {
   padding: 0 10px;
   height: calc(100% - 70px);
@@ -16,6 +17,7 @@
 
 .message-container {
   max-width: 250px;
+  min-width: 70px;
   width: fit-content;
   background-color: lightgrey;
   margin-top: 10px;
@@ -50,11 +52,47 @@
 .box-lateral {
   width: 20%;
   height: 100vh;
-  background-color: red;
+  background-color: #700790;
 }
 
 .typing-notification {
   color: #000;
   font-size: 16px;
   margin-left: 10px;
+}
+
+.system-message {
+  font-style: italic;
+  color: gray;
+}
+
+.private-message {
+  background-color: #f0f0f0;
+  border-left: 4px solid #700790;
+}
+
+.message-header {
+  display: flex;
+  align-items: center;
+  padding: 5px 0;
+}
+
+.message-timestamp {
+  display: flex;
+  justify-content: flex-end;
+  font-size: 0.8em;
+  color: #888;
+}
+
+.private-label {
+  margin-left: 10px;
+  background-color: #700790;
+  color: white;
+  padding: 2px 4px;
+  border-radius: 4px;
+  font-size: 0.8em;
+}
+
+.teste-smoll {
+  background-color: #700790;
 }

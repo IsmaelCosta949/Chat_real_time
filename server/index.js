@@ -1,33 +1,52 @@
-const app = require("express")();
-const server = require("http").createServer(app);
-const io = require("socket.io")(server, {
+// server.js
+const express = require("express");
+const app = express();
+const http = require("http");
+const server = http.createServer(app);
+const socketIo = require("socket.io");
+const io = socketIo(server, {
   cors: { origin: "http://localhost:5173" },
 });
 
+const fs = require("fs"); // tentei usar isso para salvar as mensagens porem deu algum erro e não consegui resolver entao vai ter ele espalhado no codigo
+const path = require("path");
+
 const PORT = 3001;
-const activeUsers = new Set(); // Usar um Set para manter nomes de usuários únicos
-const messageHistory = []; // Array para armazenar o histórico de mensagens
+let activeUsers = {};
+let usernameToSocketId = {};
+
+const MESSAGE_HISTORY_FILE = path.join(__dirname, "messageHistory.json");
+
+let messageHistory = [];
+if (fs.existsSync(MESSAGE_HISTORY_FILE)) {
+  const data = fs.readFileSync(MESSAGE_HISTORY_FILE, "utf8");
+  messageHistory = JSON.parse(data);
+} else {
+  messageHistory = [];
+}
+
+function saveMessageHistory() {
+  fs.writeFileSync(MESSAGE_HISTORY_FILE, JSON.stringify(messageHistory));
+}
 
 io.on("connection", (socket) => {
   console.log("Usuário conectado!", socket.id);
 
-  // Enviar histórico de mensagens mas nao funciona
   socket.emit("message_history", messageHistory);
 
-  // Quando um usuário define seu nome de usuário
   socket.on("set_username", (username) => {
-    if (activeUsers.has(username)) {
+    if (Object.values(activeUsers).includes(username)) {
       socket.emit("username_taken", {
         message: "Nome de usuário já está em uso",
       });
     } else {
-      socket.data.username = username;
-      activeUsers.add(username);
+      activeUsers[socket.id] = username;
+      usernameToSocketId[username] = socket.id;
+
       socket.emit("username_set", {
         message: "Nome de usuário configurado com sucesso",
       });
 
-      // Mensagem de entrada no chat
       const joinMessage = {
         text: `${username} entrou no chat.`,
         author: "Sistema",
@@ -35,64 +54,103 @@ io.on("connection", (socket) => {
         timestamp: new Date().toISOString(),
       };
       messageHistory.push(joinMessage);
+      saveMessageHistory();
+
       io.emit("receive_message", joinMessage);
-      io.emit("update_user_list", Array.from(activeUsers));
+
+      io.emit("update_user_list", Object.values(activeUsers));
     }
   });
 
-  // Quando um usuário envia uma mensagem
   socket.on("message", (text) => {
-    if (!socket.data.username) {
+    const username = activeUsers[socket.id];
+    if (!username) {
       socket.emit("error", {
         message: "Você precisa definir um nome de usuário primeiro",
       });
       return;
     }
 
-    const message = {
-      text,
-      authorId: socket.id,
-      author: socket.data.username,
-      timestamp: new Date().toISOString(),
-    };
-    messageHistory.push(message); // Salvar a mensagem mas nao funciona
-    io.emit("receive_message", message);
+    if (text.startsWith("/private ")) {
+      const splitText = text.split(" ");
+      const targetUsername = splitText[1];
+      const privateMessageText = splitText.slice(2).join(" ");
+
+      if (targetUsername && privateMessageText) {
+        const targetSocketId = usernameToSocketId[targetUsername];
+        if (targetSocketId) {
+          const privateMessage = {
+            text: privateMessageText,
+            authorId: socket.id,
+            author: username,
+            timestamp: new Date().toISOString(),
+            type: "private_message",
+            to: targetUsername,
+          };
+
+          socket.emit("receive_message", privateMessage);
+
+          io.to(targetSocketId).emit("receive_message", privateMessage);
+
+          messageHistory.push(privateMessage);
+          saveMessageHistory();
+        } else {
+          socket.emit("error", {
+            message: `Usuário ${targetUsername} não encontrado`,
+          });
+        }
+      } else {
+        socket.emit("error", {
+          message: "Formato incorreto. Use: /private nome_usuario mensagem",
+        });
+      }
+    } else {
+      const message = {
+        text,
+        authorId: socket.id,
+        author: username,
+        timestamp: new Date().toISOString(),
+        type: "public_message",
+      };
+      messageHistory.push(message);
+      saveMessageHistory();
+      io.emit("receive_message", message);
+    }
   });
 
-  // Quando um usuário está digitando
   socket.on("typing", () => {
-    if (socket.data.username) {
-      socket.broadcast.emit("user_typing", {
-        username: socket.data.username,
-      });
+    const username = activeUsers[socket.id];
+    if (username) {
+      socket.broadcast.emit("user_typing", { username });
     }
   });
 
-  // Quando um usuário para de digitar
   socket.on("stop_typing", () => {
-    if (socket.data.username) {
-      socket.broadcast.emit("user_stopped_typing", {
-        username: socket.data.username,
-      });
+    const username = activeUsers[socket.id];
+    if (username) {
+      socket.broadcast.emit("user_stopped_typing", { username });
     }
   });
 
-  // Quando um usuário se desconecta
   socket.on("disconnect", () => {
-    console.log("Usuário desconectado!", socket.id);
-    if (socket.data.username) {
-      activeUsers.delete(socket.data.username);
+    const username = activeUsers[socket.id];
+    if (username) {
+      delete activeUsers[socket.id];
+      delete usernameToSocketId[username];
 
       const leaveMessage = {
-        text: `${socket.data.username} saiu do chat.`,
+        text: `${username} saiu do chat.`,
         author: "Sistema",
         type: "system_message",
         timestamp: new Date().toISOString(),
       };
       messageHistory.push(leaveMessage);
+      saveMessageHistory();
+
       io.emit("receive_message", leaveMessage);
 
-      io.emit("update_user_list", Array.from(activeUsers));
+      // Atualizar lista de usuários para todos os clientes
+      io.emit("update_user_list", Object.values(activeUsers));
     }
   });
 });

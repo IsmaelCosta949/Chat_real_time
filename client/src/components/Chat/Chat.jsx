@@ -12,23 +12,24 @@ export default function Chat({ socket }) {
   const [activeUsers, setActiveUsers] = useState([]);
 
   useEffect(() => {
-    socket.on("message_history", (history) => {
-      setMessageList(history);
-    });
+    if (!socket) return;
+
+    socket.on("message_history", (history) => setMessageList(history));
 
     socket.on("receive_message", (data) => {
       setMessageList((current) => [...current, data]);
     });
 
-    socket.on("user_typing", ({ username }) => {
-      setUserTyping(username);
-    });
+    socket.on("user_typing", ({ username }) => setUserTyping(username));
 
-    socket.on("user_stopped_typing", () => {
-      setUserTyping(null);
+    socket.on("user_stopped_typing", ({ username }) => {
+      if (userTyping === username) {
+        setUserTyping(null);
+      }
     });
 
     socket.on("update_user_list", (users) => {
+      console.log("Lista de usuários atualizada recebida:", users);
       setActiveUsers(users);
     });
 
@@ -39,7 +40,7 @@ export default function Chat({ socket }) {
       socket.off("user_stopped_typing");
       socket.off("update_user_list");
     };
-  }, [socket]);
+  }, [socket, userTyping]);
 
   useEffect(() => {
     scrollDown();
@@ -52,6 +53,13 @@ export default function Chat({ socket }) {
     }
   };
 
+  const handleInputBlur = () => {
+    if (isTyping) {
+      setIsTyping(false);
+      socket.emit("stop_typing");
+    }
+  };
+
   const handleSubmit = () => {
     const message = messageRef.current.value;
     if (!message.trim()) return;
@@ -59,8 +67,10 @@ export default function Chat({ socket }) {
     socket.emit("message", message);
     clearInput();
     focusInput();
-    setIsTyping(false);
-    socket.emit("stop_typing");
+    if (isTyping) {
+      setIsTyping(false);
+      socket.emit("stop_typing");
+    }
   };
 
   const clearInput = () => {
@@ -72,7 +82,9 @@ export default function Chat({ socket }) {
   };
 
   const getEnterKey = (e) => {
-    if (e.key === "Enter") handleSubmit();
+    if (e.key === "Enter") {
+      handleSubmit();
+    }
   };
 
   const scrollDown = () => {
@@ -91,39 +103,52 @@ export default function Chat({ socket }) {
       </div>
       <div className={style["chat-container"]}>
         <div className={style["chat-body"]}>
-          {messageList.map((message, index) => (
-            <div
-              key={index}
-              className={`${style["message-container"]} ${
-                message.authorId === socket.id && style["message-mine"]
-              } ${
-                message.type === "system_message" && style["system-message"]
-              }`}
-            >
-              <div className="message-author">
-                <strong>{message.author}</strong>
+          {messageList.map((message, index) => {
+            const isMine = message.authorId === socket.id;
+            const isSystemMessage = message.type === "system_message";
+            const isPrivateMessage = message.type === "private_message";
+
+            return (
+              <div
+                key={index}
+                className={`${style["message-container"]} ${
+                  isMine ? style["message-mine"] : ""
+                } ${isSystemMessage ? style["system-message"] : ""} ${
+                  isPrivateMessage ? style["private-message"] : ""
+                }`}
+              >
+                <div className={style["message-header"]}>
+                  <strong>{message.author}</strong>
+                  {isPrivateMessage && (
+                    <span className={style["private-label"]}>[Privado]</span>
+                  )}
+                </div>
+                <div className={style["message-text"]}>{message.text}</div>
+                <span className={style["message-timestamp"]}>
+                  {new Date(message.timestamp).toLocaleTimeString()}
+                </span>
               </div>
-              <div className="message-text">{message.text}</div>
-            </div>
-          ))}
-          <div ref={bottomRef} />
+            );
+          })}
           {userTyping && (
             <div className={style["typing-notification"]}>
               {userTyping} está digitando...
             </div>
           )}
+          <div ref={bottomRef} />
         </div>
         <div className={style["chat-footer"]}>
           <Input
             inputRef={messageRef}
             placeholder="Mensagem"
-            onKeyDown={(e) => getEnterKey(e)}
+            onKeyDown={getEnterKey}
             onChange={handleInputChange}
+            onBlur={handleInputBlur}
             fullWidth
           />
           <SendIcon
             sx={{ m: 1, cursor: "pointer" }}
-            onClick={() => handleSubmit()}
+            onClick={handleSubmit}
             color="primary"
           />
         </div>
