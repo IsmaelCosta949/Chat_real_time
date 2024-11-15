@@ -31,7 +31,6 @@ async function initializeKafka() {
       try {
         const value = JSON.parse(message.value.toString());
         console.log("Mensagem consumida do Kafka:", value);
-
         io.emit("receive_message", value);
       } catch (error) {
         console.error("Erro ao processar mensagem do Kafka:", error);
@@ -81,18 +80,54 @@ io.on("connection", (socket) => {
       return;
     }
 
-    const message = {
-      text,
-      authorId: socket.id,
-      author: username,
-      timestamp: new Date().toISOString(),
-      type: "public_message",
-    };
+    if (text.startsWith("/private ")) {
+      const splitText = text.split(" ");
+      const targetUsername = splitText[1];
+      const privateMessageText = splitText.slice(2).join(" ");
 
-    producer.send({
-      topic: "chat-messages",
-      messages: [{ value: JSON.stringify(message) }],
-    });
+      if (targetUsername && privateMessageText) {
+        const targetSocketId = usernameToSocketId[targetUsername];
+        if (targetSocketId) {
+          const privateMessage = {
+            text: privateMessageText,
+            authorId: socket.id,
+            author: username,
+            timestamp: new Date().toISOString(),
+            type: "private_message",
+            to: targetUsername,
+          };
+
+          io.to(targetSocketId).emit("receive_message", privateMessage);
+          socket.emit("receive_message", privateMessage);
+
+          producer.send({
+            topic: "chat-messages",
+            messages: [{ value: JSON.stringify(privateMessage) }],
+          });
+        } else {
+          socket.emit("error", {
+            message: `Usuário ${targetUsername} não encontrado`,
+          });
+        }
+      } else {
+        socket.emit("error", {
+          message: "Formato incorreto. Use: /private <username> <mensagem>",
+        });
+      }
+    } else {
+      const message = {
+        text,
+        authorId: socket.id,
+        author: username,
+        timestamp: new Date().toISOString(),
+        type: "public_message",
+      };
+
+      producer.send({
+        topic: "chat-messages",
+        messages: [{ value: JSON.stringify(message) }],
+      });
+    }
   });
 
   socket.on("disconnect", () => {
