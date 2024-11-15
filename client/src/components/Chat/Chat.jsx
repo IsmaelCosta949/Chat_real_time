@@ -17,6 +17,7 @@ export default function Chat({ socket }) {
     socket.on("message_history", (history) => setMessageList(history));
 
     socket.on("receive_message", (data) => {
+      console.log("Mensagem recebida:", data);
       setMessageList((current) => [...current, data]);
     });
 
