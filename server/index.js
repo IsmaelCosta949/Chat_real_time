@@ -11,10 +11,9 @@ const io = socketIo(server, {
 
 const PORT = 3001;
 
-// Configuração do Kafka
 const kafka = new Kafka({
   clientId: "chat-app",
-  brokers: ["localhost:9092"], // Ajuste se necessário
+  brokers: ["localhost:9092"],
 });
 const producer = kafka.producer();
 const consumer = kafka.consumer({ groupId: "chat-group" });
@@ -41,7 +40,6 @@ async function initializeKafka() {
   });
 }
 
-// Configuração do WebSocket
 io.on("connection", (socket) => {
   console.log("Usuário conectado:", socket.id);
 
