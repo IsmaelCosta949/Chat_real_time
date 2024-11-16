@@ -31,6 +31,7 @@ async function initializeKafka() {
       try {
         const value = JSON.parse(message.value.toString());
         console.log("Mensagem consumida do Kafka:", value);
+
         io.emit("receive_message", value);
       } catch (error) {
         console.error("Erro ao processar mensagem do Kafka:", error);
@@ -99,11 +100,6 @@ io.on("connection", (socket) => {
 
           io.to(targetSocketId).emit("receive_message", privateMessage);
           socket.emit("receive_message", privateMessage);
-
-          producer.send({
-            topic: "chat-messages",
-            messages: [{ value: JSON.stringify(privateMessage) }],
-          });
         } else {
           socket.emit("error", {
             message: `Usuário ${targetUsername} não encontrado`,
